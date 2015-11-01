@@ -1,0 +1,15 @@
+{
+  "name": "geo",
+  "version": "1.0.0",
+  "description": "Coding challenge for Left Field Labs",
+  "main": "geo.js",
+  "dependencies": {
+    "q": "^1.4.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "mark gable",
+  "license": "ISC"
+}
