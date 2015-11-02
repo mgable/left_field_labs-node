@@ -1,28 +1,40 @@
 "use strict";
-var https = require('https'),
+var https = require('https'), 
+	// promis library
 	Q = require('q'),
+	// array of locations
 	places = require('./locations.js'),
+	// location to calculate all distances from
 	origin = escape(places.origin),
+	// parse addresses from destinations
 	addresses = places.destinations.split("|").map(escape),
 	earthRadiusKilo = 6371,
 	earthRadiusMiles = 3959,
+	// radius is a constant used for determining distance. can be either kilometers or miles
 	radius = {selected: "imperial", metric: {"label": "KM", "distance": earthRadiusKilo}, imperial: {"label": "miles", "distance": earthRadiusMiles}},
 	promises = [];
 
+// first fetch the location data on the origin address
 fetchExternalData(origin).then(init);
 
 function init(origin){
+	// fetch alll the location data on the places array
 	promises = addresses.map(fetchExternalData);
 
+	// when all locations have resulved
 	Q.all(promises).then(function(data){
+
+		// calculate distance from origin location for each place
 		data.forEach(function(v,i,a){
 			a[i].distanceFromOrigin = getDistances(origin, v);
 		});
 
+		// sort in ascending order
 		data.sort(function(a,b){
 			return a.distanceFromOrigin - b.distanceFromOrigin;
 		});
 
+		// make it pretty
 		format(origin, data);
 	});
 }
@@ -34,6 +46,8 @@ function format(origin, output){
 	});
 }
 
+// hardcoded config variables
+// I would not do this for a production system. Its just a quick hack for this exercise.
 function returnOptionsObj(address){
 	var options = {
 		hostname: 'maps.googleapis.com',
@@ -46,35 +60,42 @@ function returnOptionsObj(address){
 
 function fetchExternalData(address){
 	var deferred = Q.defer(),
-		options = returnOptionsObj(address);
+		options = returnOptionsObj(address),
+		req = https.request(options, function(res) {
+			var data = "";
 
-	var req = https.request(options, function(res) {
-		var data = "";
+			res.on('data', function(chunk) {
+				data += chunk;
+			});
 
-		res.on('data', function(chunk) {
-			data += chunk;
+			res.on('end', function(){
+				deferred.resolve(parse(data));
+			})
 		});
-
-		res.on('end', function(){
-			deferred.resolve(parse(data));
-		})
-	});
 
 	req.end();
 
 	req.on('error', function(e) {
-		deferred.reject(new Error("There was an error in the http request or responce"));
+		deferred.reject(new Error("There was an error in the http request or response"));
 	});
 
 	return deferred.promise;
 }
 
+// parse string into JSON
 function parse(data){
-	var place = JSON.parse(data);
+	try {
+	 var place = JSON.parse(data);
+	 return place.results[0];
+	} catch(e){
+		new Error("The data did not parse as JSON");
+	}
 
-	return place.results[0];
+	return false;
 }
 
+// calculated the distance between to options on the earth (sphere)
+// I did not write this. It was found.
 function getDistances(location1Obj, location2Obj){
 	var RADIUS = radius[radius.selected],
 		location1 = location1Obj.geometry.location,
@@ -88,9 +109,9 @@ function getDistances(location1Obj, location2Obj){
 		distance = RADIUS.distance * c;
 
 	return distance.toFixed(0);
-	//return "The absolute distance between " + location1Obj.formatted_address + " and " + location2Obj.formatted_address + " is " + d.toFixed(0) + " " + RADIUS.label;
 }
 
+// degrees to radians
 function toRad(deg) {
-		return deg * Math.PI/180;
-	}
+	return deg * Math.PI/180;
+}
